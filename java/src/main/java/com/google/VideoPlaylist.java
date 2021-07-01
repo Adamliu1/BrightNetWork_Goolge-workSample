@@ -5,8 +5,9 @@ import java.util.HashMap;
 
 /** A class used to represent a Playlist */
 class VideoPlaylist {
-    // Video_id, Video
+
     private final ArrayList<Video> content = new ArrayList<>();
+    private final Printer myPrinter = new Printer();
 
     public void addItem(String listName, Video myVideo) {
         if (content.contains(myVideo)) {
@@ -16,16 +17,7 @@ class VideoPlaylist {
             System.out.printf("Added video to %s: %s\n", listName, myVideo.getTitle());
         }
     }
-    private String printVideo(Video targetVideo) {
-        String tags = targetVideo.getTags().toString().replaceAll(",", "");
-        return String.format("%s (%s) %s", targetVideo.getTitle(), targetVideo.getVideoId(), tags);
-    }
 
-    private String printVideoFlagged(Video targetVideo, HashMap<String, String> flagVidMap) {
-        String tags = targetVideo.getTags().toString().replaceAll(",", "");
-        return String.format("%s (%s) %s - FLAGGED (reason: %s)", targetVideo.getTitle(), targetVideo.getVideoId(), tags,
-                flagVidMap.get(targetVideo.getVideoId()));
-    }
 
     public void printList(HashMap<String, String> flagMap) {
         if (content.isEmpty()) {
@@ -33,9 +25,9 @@ class VideoPlaylist {
         } else {
             for (Video curVideo : content) {
                 if (flagMap.containsKey(curVideo.getVideoId())) {
-                    System.out.println(printVideoFlagged(curVideo, flagMap));
+                    System.out.println(myPrinter.printVideoFlagged(curVideo, flagMap));
                 } else {
-                    System.out.println(printVideo(curVideo));
+                    System.out.println(myPrinter.printVideo(curVideo));
                 }
             }
         }

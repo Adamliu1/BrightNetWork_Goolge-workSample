@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 public class VideoPlayer {
 
   private final VideoLibrary videoLibrary;
+  private final Printer myPrinter;
   private final HashMap<String, Video> statusMap = new HashMap<>();
   private final HashMap<String, VideoPlaylist> videoListMap = new HashMap<>();
   //flag vidID, reason
@@ -16,36 +17,12 @@ public class VideoPlayer {
   public VideoPlayer() {
     this.videoLibrary = new VideoLibrary();
     initStatusMap();
+    myPrinter = new Printer();
   }
 
   private void initStatusMap() {
     statusMap.put("PLAY", null);
     statusMap.put("PAUSE", null);
-  }
-
-  private String printVideo(Video targetVideo) {
-    String tags = targetVideo.getTags().toString().replaceAll(",", "");
-    return String.format("%s (%s) %s", targetVideo.getTitle(), targetVideo.getVideoId(), tags);
-  }
-
-  private String printVideoFlagged(Video targetVideo) {
-    String tags = targetVideo.getTags().toString().replaceAll(",", "");
-    return String.format("%s (%s) %s - FLAGGED (reason: %s)", targetVideo.getTitle(), targetVideo.getVideoId(), tags,
-            flagVidMap.get(targetVideo.getVideoId()));
-  }
-
-  // Aux function for printing all videos. Given in list
-  private void printVideos(List<Video> listOfVid) {
-    // sort listOfVid in lexico. order
-    listOfVid.sort(Comparator.comparing(Video::getTitle));
-    for (Video curVideo : listOfVid) {
-      //checkFlag
-      if (flagVidMap.containsKey(curVideo.getVideoId())) {
-        System.out.println(printVideoFlagged(curVideo));
-        continue;
-      }
-      System.out.println(printVideo(curVideo));
-    }
   }
 
   public void numberOfVideos() {
@@ -54,7 +31,14 @@ public class VideoPlayer {
 
   public void showAllVideos() {
     System.out.println("Here's a list of all available videos:");
-    printVideos(videoLibrary.getVideos());
+    myPrinter.printVideos(videoLibrary.getVideos(), flagVidMap);
+  }
+
+  private void vidListSorter(List<Video> videoList) {
+    if (videoList == null) {
+      return;
+    }
+    videoList.sort(Comparator.comparing(Video::getTitle));
   }
 
   private boolean stopPlayingAux() {
@@ -82,7 +66,6 @@ public class VideoPlayer {
     return false;
   }
 
-
   public void playVideo(String videoId) {
     //get video object from videoLibrary
     Video targetVideo = videoLibrary.getVideo(videoId);
@@ -108,25 +91,32 @@ public class VideoPlayer {
   }
 
   private void playRandomVideo_Aux(List<Video> videoList) {
+    if (videoList == null) {
+      return;
+    }
     Random randomMethod = new Random();
     int randomIndex = randomMethod.nextInt(videoList.size());
     Video randomVideo = videoList.get(randomIndex);
     playVideo(randomVideo.getVideoId());
   }
 
-  public void playRandomVideo() {
-    // get random videoId
-    List<Video> videoList = videoLibrary.getVideos();
+  //Exclude videos with flag
+  private List<Video> playRandomAux(List<Video> videoList) {
     List<String> flaggedIdList = new ArrayList<>(flagVidMap.keySet());
-
     List<Video> flaggedVideoList = new ArrayList<>();
+
     for (String curId : flaggedIdList) {
       flaggedVideoList.add(videoLibrary.getVideo(curId));
     }
-
-    List<Video> filteredList = videoList.stream()
+    return videoList.stream()
             .filter(element -> !flaggedVideoList.contains(element))
             .collect(Collectors.toList());
+  }
+
+  public void playRandomVideo() {
+    // get random videoId
+    List<Video> videoList = videoLibrary.getVideos();
+    List<Video> filteredList = playRandomAux(videoList);
 
     if (filteredList.size() == 0) {
       System.out.println("No videos available");
@@ -179,17 +169,25 @@ public class VideoPlayer {
       }
   }
 
+  // check if video is exist in library
+  private boolean isTargetVideoExist(Video targetVideo) {
+    return targetVideo == null;
+  }
+
   public void showPlaying() {
-    if (statusMap.get("PLAY") == null && statusMap.get("PAUSE") == null) {
+    if (isTargetVideoExist(statusMap.get("PLAY")) && isTargetVideoExist(statusMap.get("PAUSE"))) {
       System.out.println("No video is currently playing");
     } else if (statusMap.get("PLAY") != null) {
-      System.out.printf("Currently playing: %s \n", printVideo(statusMap.get("PLAY")));
+      System.out.printf("Currently playing: %s \n", myPrinter.printVideo(statusMap.get("PLAY")));
     } else {
-      System.out.printf("Currently playing: %s - PAUSED \n", printVideo(statusMap.get("PAUSE")));
+      System.out.printf("Currently playing: %s - PAUSED \n", myPrinter.printVideo(statusMap.get("PAUSE")));
     }
   }
 
   public void createPlaylist(String playlistName) {
+    if (playlistName == null) {
+      return;
+    }
     //check if listName contains white space
     if (playlistName.contains(" ")) {
       //remove white space
@@ -213,12 +211,15 @@ public class VideoPlayer {
   }
 
   public void addVideoToPlaylist(String playlistName, String videoId) {
+    if (playlistName == null) {
+      return;
+    }
     VideoPlaylist targetList = videoListMap.get(playlistName.toLowerCase());
     Video targetVideo = videoLibrary.getVideo(videoId);
 
     if (targetList == null) {
       addVideoToPlayList_Aux(playlistName, "Playlist does not exist");
-    } else if (targetVideo == null) {
+    } else if (isTargetVideoExist(targetVideo)) {
       addVideoToPlayList_Aux(playlistName, "Video does not exist");
     } else {
       String flagMsg = String.format("Cannot add video to %s: Video is currently flagged", playlistName);
@@ -248,6 +249,9 @@ public class VideoPlayer {
   }
 
   public void showPlaylist(String playlistName) {
+    if (playlistName == null) {
+      return;
+    }
     VideoPlaylist targetList = videoListMap.get(playlistName.toLowerCase());
     if (targetList == null) {
       System.out.printf("Cannot show playlist %s: Playlist does not exist\n", playlistName);
@@ -258,12 +262,15 @@ public class VideoPlayer {
   }
 
   public void removeFromPlaylist(String playlistName, String videoId) {
+    if (playlistName == null) {
+      return;
+    }
     VideoPlaylist targetList = videoListMap.get(playlistName.toLowerCase());
     Video targetVideo = videoLibrary.getVideo(videoId);
 
     if (targetList == null) {
       System.out.printf("Cannot remove video from %s: Playlist does not exist\n", playlistName);
-    } else if (targetVideo == null) {
+    } else if (isTargetVideoExist(targetVideo)) {
       System.out.printf("Cannot remove video from %s: Video does not exist\n", playlistName);
     } else {
       targetList.removeItem(playlistName, targetVideo);
@@ -271,6 +278,9 @@ public class VideoPlayer {
   }
 
   public void clearPlaylist(String playlistName) {
+    if (playlistName == null) {
+      return;
+    }
     VideoPlaylist targetList = videoListMap.get(playlistName.toLowerCase());
     if (targetList == null) {
       System.out.printf("Cannot clear playlist %s: Playlist does not exist\n", playlistName);
@@ -280,6 +290,9 @@ public class VideoPlayer {
   }
 
   public void deletePlaylist(String playlistName) {
+    if (playlistName == null) {
+      return;
+    }
     VideoPlaylist targetList = videoListMap.get(playlistName.toLowerCase());
     if (targetList == null) {
       System.out.printf("Cannot delete playlist %s: Playlist does not exist\n", playlistName);
@@ -290,29 +303,20 @@ public class VideoPlayer {
   }
 
   private void showSearchResult(List<Video> resultList) {
+    if (resultList == null) {
+      return;
+    }
     int counter = 0;
     for (Video curVideo : resultList) {
       //option starts from 1
-      System.out.printf("%d) %s\n", counter+1,printVideo(curVideo));
+      System.out.printf("%d) %s\n", counter+1, myPrinter.printVideo(curVideo));
       counter++;
     }
     System.out.print("Would you like to play any of the above? If yes, specify the number of the video.\n" +
             "If your answer is not a valid number, we will assume it's a no.\n");
   }
 
-  private void actionResult(List<Video> resultList, String keyWord) {
-    if (resultList.size() == 0) {
-      System.out.printf("No search results for %s\n", keyWord);
-      return;
-    }
-
-    System.out.printf("Here are the results for %s:\n", keyWord);
-    showSearchResult(resultList);
-
-    //get input from user
-    var scanner = new Scanner(System.in);
-    var input = scanner.nextLine();
-
+  private void processAction(List<Video> resultList, String input) {
     int choice;
     try {
       choice = Integer.parseInt(input);
@@ -321,11 +325,26 @@ public class VideoPlayer {
       }
       Video targetVideo = resultList.get(choice-1);
       playVideo(targetVideo.getVideoId());
-
     } catch (NumberFormatException e) {
       //do nothing
     }
+  }
 
+  private void actionResult(List<Video> resultList, String keyWord) {
+    if (resultList == null) {
+      return;
+    }
+    if (resultList.size() == 0) {
+      System.out.printf("No search results for %s\n", keyWord);
+      return;
+    }
+    System.out.printf("Here are the results for %s:\n", keyWord);
+    showSearchResult(resultList);
+
+    //get input from user
+    var scanner = new Scanner(System.in);
+    var input = scanner.nextLine();
+    processAction(resultList, input);
   }
 
   //Use regex to match keyword
@@ -343,7 +362,7 @@ public class VideoPlayer {
       }
     }
     //sort resultList
-    resultList.sort(Comparator.comparing(Video::getTitle));
+    vidListSorter(resultList);
     actionResult(resultList, searchTerm);
   }
 
@@ -361,7 +380,7 @@ public class VideoPlayer {
       }
     }
     //sort resultList
-    resultList.sort(Comparator.comparing(Video::getTitle));
+    vidListSorter(resultList);
     actionResult(resultList, videoTag);
   }
 
@@ -378,7 +397,7 @@ public class VideoPlayer {
       stopVideo();
     }
 
-    if (targetVideo == null) {
+    if (isTargetVideoExist(targetVideo)) {
       System.out.println("Cannot flag video: Video does not exist");
     } else if (flagVidMap.containsKey(videoId)) {
       System.out.println("Cannot flag video: Video is already flagged");
@@ -392,7 +411,7 @@ public class VideoPlayer {
     //check if video exist
     Video targetVideo = videoLibrary.getVideo(videoId);
 
-    if (targetVideo == null) {
+    if (isTargetVideoExist(targetVideo)) {
       System.out.println("Cannot remove flag from video: Video does not exist");
     } else if (flagVidMap.containsKey(videoId)) {
       flagVidMap.remove(videoId);
@@ -401,4 +420,5 @@ public class VideoPlayer {
       System.out.println("Cannot remove flag from video: Video is not flagged");
     }
   }
+
 }
